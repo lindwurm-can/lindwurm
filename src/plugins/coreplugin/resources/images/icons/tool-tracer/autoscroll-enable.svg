@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   class="ionicon"
+   viewBox="0 0 352 448"
+   version="1.1"
+   id="svg8"
+   sodipodi:docname="tracer-autoscroll-enable.svg"
+   width="352"
+   height="448"
+   inkscape:version="1.1 (c4e8f9ed74, 2021-05-24)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs12" />
+  <sodipodi:namedview
+     id="namedview10"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:zoom="0.79003902"
+     inkscape:cx="496.17802"
+     inkscape:cy="343.65391"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg8" />
+  <title
+     id="title2">Reader</title>
+  <path
+     id="rect1418"
+     style="stroke-width:4.04895"
+     d="M 98,247.30178 H 254 L 176,363.3401 v 0 z"
+     sodipodi:nodetypes="ccccc" />
+  <rect
+     x="16"
+     y="16"
+     width="320"
+     height="416"
+     rx="48"
+     ry="48"
+     fill="none"
+     stroke="currentColor"
+     stroke-linejoin="round"
+     stroke-width="32"
+     id="rect4" />
+  <path
+     fill="none"
+     stroke="currentColor"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     stroke-width="32"
+     d="M 96,96 H 256 M 96,152.48062 h 160"
+     id="path6"
+     sodipodi:nodetypes="cccc" />
+  <metadata
+     id="metadata829">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Reader</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>

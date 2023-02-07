@@ -1,0 +1,21 @@
+QMenuBar
+{ 
+	background: rgba(64, 66, 68, 255);
+	border-bottom: 1px solid #1E1F20;
+}
+
+QMenuBar::item:selected 
+{
+    border-bottom: 1px solid #1E1F20;
+}
+
+QMenu
+{
+	border: 1px solid #6b6b6b;
+}
+
+/* for combo box drop downs */
+QListView
+{
+	border: 1px solid #6b6b6b;
+}

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   class="ionicon"
+   viewBox="0 0 448 448"
+   version="1.1"
+   id="svg6"
+   sodipodi:docname="tracer-save.svg"
+   width="448"
+   height="448"
+   inkscape:version="1.1 (c4e8f9ed74, 2021-05-24)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs10" />
+  <sodipodi:namedview
+     id="namedview8"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:zoom="1.5800781"
+     inkscape:cx="223.40667"
+     inkscape:cy="223.72311"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg6" />
+  <title
+     id="title2">Save</title>
+  <path
+     d="m 348.93,25.370001 a 32,32 0 0 0 -22.63,-9.37 H 62.220001 a 46.21,46.21 0 0 0 -46.22,46.22 V 385.78 a 46.21,46.21 0 0 0 46.22,46.22 H 385.78 A 46.36,46.36 0 0 0 432,385.78 V 121.7 A 32,32 0 0 0 422.63,99.070001 Z M 224,384 a 64,64 0 1 1 64,-64 63.92,63.92 0 0 1 -64,64 z M 272,160 H 80.000001 a 16,16 0 0 1 -16,-16 V 80.000001 a 16,16 0 0 1 16,-16 H 272 a 16,16 0 0 1 16,16 V 144 a 16,16 0 0 1 -16,16 z"
+     fill="none"
+     stroke="currentColor"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     stroke-width="32"
+     id="path4" />
+  <metadata
+     id="metadata827">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Save</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>

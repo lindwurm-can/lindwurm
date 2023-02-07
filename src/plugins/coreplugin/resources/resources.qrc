@@ -1,0 +1,43 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/Lindwurm.svg</file>
+        
+        <file>stylesheet-dark.css</file>
+        
+        <file>images/icons/tool-logger/logger.png</file>
+        <file>images/icons/tool-logger/bug.svg</file>
+        <file>images/icons/tool-logger/bug-dark.svg</file>
+        <file>images/icons/tool-logger/info.svg</file>
+        <file>images/icons/tool-logger/warning.svg</file>
+        <file>images/icons/tool-logger/error.svg</file>
+        <file>images/icons/tool-logger/clear-logs.svg</file>
+ 
+		<file>images/icons/tool-interfaces/interfaces.png</file>
+        <file>images/icons/tool-interfaces/add.svg</file>
+        <file>images/icons/tool-interfaces/edit.svg</file>
+        <file>images/icons/tool-interfaces/remove.svg</file>    
+ 
+ 		<file>images/icons/tool-tracer/tracer.png</file>
+        <file>images/icons/tool-tracer/stop.svg</file>
+        <file>images/icons/tool-tracer/start.svg</file>
+        <file>images/icons/tool-tracer/save-trace.svg</file>
+        <file>images/icons/tool-tracer/open-trace.svg</file>
+        <file>images/icons/tool-tracer/clear-filter.svg</file>
+        <file>images/icons/tool-tracer/apply-filter.svg</file>
+        <file>images/icons/tool-tracer/view-single.svg</file>
+        <file>images/icons/tool-tracer/view-aggregate.svg</file>
+        <file>images/icons/tool-tracer/autoscroll-enable.svg</file>
+        <file>images/icons/tool-tracer/filter-bookmarks.svg</file>
+        <file>images/icons/tool-tracer/filter-add.svg</file>
+        <file>images/icons/tool-tracer/filter-remove.svg</file>
+        
+        <file>images/icons/tool-composer/composer.png</file>
+        <file>images/icons/tool-composer/send.svg</file>
+        <file>images/icons/tool-composer/stop.svg</file>
+        <file>images/icons/tool-composer/pause.svg</file>
+        
+        <file>images/icons/tool-uds/uds.png</file>
+        
+        <file>images/icons/tool-isotp/isotp.png</file>
+    </qresource>
+</RCC>

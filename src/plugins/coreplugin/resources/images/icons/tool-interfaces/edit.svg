@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   class="ionicon"
+   viewBox="0 0 448.15158 448.21725"
+   version="1.1"
+   id="svg8"
+   sodipodi:docname="interface-edit.svg"
+   width="448.15158"
+   height="448.21725"
+   inkscape:version="1.1 (c4e8f9ed74, 2021-05-24)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs12" />
+  <sodipodi:namedview
+     id="namedview10"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:zoom="1.5800781"
+     inkscape:cx="224.03956"
+     inkscape:cy="224.356"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg8" />
+  <title
+     id="title2">Build</title>
+  <path
+     d="m 361.95935,158.1279 a 32.1,32.1 0 0 1 -45.25,0 l -26.57,-26.57 a 32.09,32.09 0 0 1 0,-45.259999 l 60.14,-60.17 a 1,1 0 0 0 -0.3,-1.64 c -38.82,-16.6399996 -89.15,-8.16 -121.11,23.57 -30.58,30.35 -32.32,75.999999 -21.12,115.839999 a 31.93,31.93 0 0 1 -9.06,32.08 l -166.6,152.15 a 48.17,48.17 0 1 0 68,68 l 153.86,-167 a 31.93,31.93 0 0 1 31.6,-9.13 c 39.54,10.59 84.54,8.6 114.72,-21.19 32.49,-32 39.5,-88.56 23.75,-120.929999 a 1,1 0 0 0 -1.6,-0.26 z"
+     fill="none"
+     stroke="currentColor"
+     stroke-linecap="round"
+     stroke-miterlimit="10"
+     stroke-width="32"
+     id="path4" />
+  <circle
+     cx="64.089348"
+     cy="384.1279"
+     r="16"
+     id="circle6" />
+  <metadata
+     id="metadata829">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Build</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>
