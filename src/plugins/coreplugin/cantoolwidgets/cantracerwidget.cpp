@@ -386,6 +386,7 @@ namespace Lindwurm::Core
         m_filterModel->setSourceModel(model);
         m_filterModel->setFilterKeyColumn(2);
 
+        applyViewFilter();
         ui->traceView->setModel(m_filterModel);
 
         if ( m_autoScrollAction->isChecked() )
