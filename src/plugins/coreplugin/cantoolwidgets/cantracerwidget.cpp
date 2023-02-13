@@ -62,13 +62,13 @@ namespace Lindwurm::Core
 
         ui->viewFilterBox->lineEdit()->setPlaceholderText("Apply ID filter ... ( e.g. 1AF, 33, 50 )");
 
-        connect(ui->viewFilterBox->lineEdit(), &QLineEdit::returnPressed, this, &CanTracerWidget::applyViewFilter);
+        connect(ui->viewFilterBox->lineEdit(), &QLineEdit::returnPressed, this, [=](){ applyViewFilter(true); } );
         connect(ui->viewFilterBox->lineEdit(), &QLineEdit::textChanged, this, &CanTracerWidget::setViewFilterEditedIndication);
         connect(ui->cmbFilterType, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &CanTracerWidget::setViewFilterEditedIndication);
 
         m_applyFilterAction = ui->viewFilterBox->lineEdit()->addAction( ActiveTheme::icon("tool-tracer/apply-filter"), QLineEdit::TrailingPosition);
         m_applyFilterAction->setEnabled(false);
-        connect(m_applyFilterAction, &QAction::triggered, this, &CanTracerWidget::applyViewFilter);
+        connect(m_applyFilterAction, &QAction::triggered, this, [=](){ applyViewFilter(true); } );
 
         m_clearFilterAction = ui->viewFilterBox->lineEdit()->addAction( ActiveTheme::icon("tool-tracer/clear-filter"), QLineEdit::TrailingPosition);
         m_clearFilterAction->setVisible(false);
@@ -88,8 +88,7 @@ namespace Lindwurm::Core
 
         ui->selectInterfaceBox->setStyleSheet("QComboBox { padding-left: 10px; padding-right: 10px; height: 24px; }");
 
-        // TODO: Implement me
-        //setupContextMenu();
+        setupContextMenu();
 
         ui->selectInterfaceBox->setModel( Lib::ICanInterfaceManager::instance()->interfaceListModel() );
     }
@@ -97,6 +96,33 @@ namespace Lindwurm::Core
     CanTracerWidget::~CanTracerWidget()
     {
         delete ui;
+    }
+
+    QSet<QString> CanTracerWidget::selectedIds()
+    {
+        QModelIndexList selection = ui->traceView->selectionModel()->selectedRows();
+        QSet<QString> uniqueIdSet;
+
+        for (QModelIndex index : selection)
+        {
+            uniqueIdSet.insert( m_filterModel->data( m_filterModel->index( index.row(), 2) ).toString() );
+        }
+
+        return uniqueIdSet;
+    }
+
+    QSet<QString> CanTracerWidget::allDisplayedIds()
+    {
+        QSet<QString> uniqueIdSet;
+
+        int numberOfRows = m_filterModel->rowCount();
+
+        for (int row = 0; row < numberOfRows; row++)
+        {
+            uniqueIdSet.insert( m_filterModel->data( m_filterModel->index( row, 2) ).toString() );
+        }
+
+        return uniqueIdSet;
     }
 
     void CanTracerWidget::startTrace()
@@ -156,7 +182,7 @@ namespace Lindwurm::Core
         //m_saveAction->setEnabled(true);
     }
 
-    void CanTracerWidget::applyViewFilter()
+    void CanTracerWidget::applyViewFilter(bool addToRecentUsed)
     {
         bool blockFilter = ui->cmbFilterType->currentData().toBool();
         QString filterString = ui->viewFilterBox->lineEdit()->text();
@@ -189,13 +215,16 @@ namespace Lindwurm::Core
             setViewFilterActiveIndication();
         }
 
-        addToRecentUsedFilters( ui->viewFilterBox->lineEdit()->text() );
+        if ( addToRecentUsed )
+        {
+            addToRecentUsedFilters( ui->viewFilterBox->lineEdit()->text() );
+        }
     }
 
     void CanTracerWidget::clearViewFilter()
     {
         ui->viewFilterBox->lineEdit()->setText("");
-        applyViewFilter();
+        applyViewFilter(false);
     }
 
     void CanTracerWidget::setViewFilterActiveIndication()
@@ -274,6 +303,37 @@ namespace Lindwurm::Core
         }
 
         delete m_filterBookmarksDialog;
+    }
+
+    void CanTracerWidget::setIdSetAsFilter(const QSet<QString> &idSet, FilterType type)
+    {
+        QString filterString = idSetToFilterString( idSet );
+
+        if ( ! filterString.isEmpty() )
+        {
+            ui->viewFilterBox->lineEdit()->setText( filterString );
+            ui->cmbFilterType->setCurrentIndex(type);
+            applyViewFilter(false);
+        }
+    }
+
+    void CanTracerWidget::appendIdSetToFilter(const QSet<QString> &idSet)
+    {
+        QString filterString = idSetToFilterString( idSet );
+
+        if ( ! filterString.isEmpty() )
+        {
+            QString currentFilterString = ui->viewFilterBox->lineEdit()->text();
+
+            if ( ! currentFilterString.isEmpty() )
+            {
+                currentFilterString.append(",");
+            }
+
+            currentFilterString.append(filterString);
+            ui->viewFilterBox->lineEdit()->setText( currentFilterString );
+            applyViewFilter(false);
+        }
     }
 
     void CanTracerWidget::setupToolBar()
@@ -373,6 +433,74 @@ namespace Lindwurm::Core
         });
     }
 
+    void CanTracerWidget::setupContextMenu()
+    {
+        // TODO: Disable actions if there are no frames selected or the view is empty
+
+        // ------ Set as block filter
+
+        QAction* setAsBlockFilterAction = new QAction("Set as block filter");
+        QMenu*   setAsBlockFilterMenu = new QMenu();
+
+        connect( setAsBlockFilterMenu->addAction("Selected"), &QAction::triggered, this, [this]
+        {
+            QSet<QString> filterIds = selectedIds();
+            setIdSetAsFilter(filterIds, BlockFilter);
+        });
+
+        connect( setAsBlockFilterMenu->addAction("All"), &QAction::triggered, this, [this]
+        {
+            QSet<QString> filterIds = allDisplayedIds();
+            setIdSetAsFilter(filterIds, BlockFilter);
+        });
+
+        setAsBlockFilterAction->setMenu(setAsBlockFilterMenu);
+
+        ui->traceView->addAction(setAsBlockFilterAction);
+
+        // ------ Set as pass filter
+
+        QAction* setAsPassFilterAction = new QAction("Set as pass filter");
+        QMenu*   setAsPassFilterMenu = new QMenu();
+
+        connect( setAsPassFilterMenu->addAction("Selected"), &QAction::triggered, this, [this]
+        {
+            QSet<QString> filterIds = selectedIds();
+            setIdSetAsFilter(filterIds, PassFilter);
+        });
+
+        connect( setAsPassFilterMenu->addAction("All"), &QAction::triggered, this, [this]
+        {
+            QSet<QString> filterIds = allDisplayedIds();
+            setIdSetAsFilter(filterIds, PassFilter);
+        });
+
+        setAsPassFilterAction->setMenu(setAsPassFilterMenu);
+
+        ui->traceView->addAction(setAsPassFilterAction);
+
+        // ------ Append to filter
+
+        QAction* appendToFilterAction = new QAction("Append to filter");
+        QMenu*   appendToFilterMenu = new QMenu();
+
+        connect( appendToFilterMenu->addAction("Selected"), &QAction::triggered, this, [this]
+        {
+            QSet<QString> filterIds = selectedIds();
+            appendIdSetToFilter( filterIds );
+        });
+
+        connect( appendToFilterMenu->addAction("All"), &QAction::triggered, this, [this]
+        {
+            QSet<QString> filterIds = allDisplayedIds();
+            appendIdSetToFilter( filterIds );
+        });
+
+        appendToFilterAction->setMenu(appendToFilterMenu);
+
+        ui->traceView->addAction(appendToFilterAction);
+    }
+
     void CanTracerWidget::setModel(QAbstractItemModel *model)
     {
         if ( m_filterModel != nullptr )
@@ -386,7 +514,7 @@ namespace Lindwurm::Core
         m_filterModel->setSourceModel(model);
         m_filterModel->setFilterKeyColumn(2);
 
-        applyViewFilter();
+        applyViewFilter(false);
         ui->traceView->setModel(m_filterModel);
 
         if ( m_autoScrollAction->isChecked() )
@@ -522,5 +650,26 @@ namespace Lindwurm::Core
         }
 
         ui->bookmarksButton->setMenu(m_filterBookmarksMenu);
+    }
+
+    QString CanTracerWidget::idSetToFilterString(const QSet<QString> &ids)
+    {
+        QString filterString;
+        bool isFollowingElement = false;
+
+        for (const QString& id : ids )
+        {
+            if ( isFollowingElement )
+            {
+                filterString += "," + id;
+            }
+            else
+            {
+                filterString += id;
+                isFollowingElement = true;
+            }
+        }
+
+        return filterString;
     }
 }

@@ -57,12 +57,15 @@ namespace Lindwurm::Core
             explicit                        CanTracerWidget(QWidget *parent = nullptr);
                                             ~CanTracerWidget();
 
+            QSet<QString>                   selectedIds();
+            QSet<QString>                   allDisplayedIds();
+
         private slots:
 
             void                            startTrace();
             void                            stopTrace();
 
-            void                            applyViewFilter();
+            void                            applyViewFilter(bool addToRecentUsed);
             void                            clearViewFilter();
             void                            setViewFilterActiveIndication();
             void                            setViewFilterInactiveIndication();
@@ -73,13 +76,25 @@ namespace Lindwurm::Core
 
         private:
 
+            enum FilterType
+            {
+                PassFilter,
+                BlockFilter
+            };
+
             void                            setupToolBar();
+            void                            setupContextMenu();
             void                            setModel(QAbstractItemModel *model);
             void                            resizeTraceViewColumnsToContents();
 
             void                            addToRecentUsedFilters(const QString &filter);
             void                            loadRecentUsedFilters();
             void                            loadFilterBookmarks();
+
+            void                            setIdSetAsFilter(const QSet<QString> &idSet, CanTracerWidget::FilterType type);
+            void                            appendIdSetToFilter(const QSet<QString> &idSet);
+
+            QString                         idSetToFilterString(const QSet<QString> &ids);
 
         private:
 
