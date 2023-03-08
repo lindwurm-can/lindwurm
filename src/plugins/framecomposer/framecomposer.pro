@@ -31,19 +31,13 @@ include(../../lindwurmlib/lindwurmlib.pri)
 SOURCES += \
     canframecomposertab.cpp \
     canframecomposerwidget.cpp \
-    framecomposerplugin.cpp \
-    utils/addtabbutton.cpp \
-    utils/fancytabstyle.cpp \
-    utils/fancytabwidget.cpp
+    framecomposerplugin.cpp
 
 HEADERS += \
     canframecomposertab.h \
     canframecomposerwidget.h \
     framecomposer_global.h \
-    framecomposerplugin.h \
-    utils/addtabbutton.h \
-    utils/fancytabstyle.h \
-    utils/fancytabwidget.h
+    framecomposerplugin.h
 
 FORMS += \
     canframecomposertab.ui \

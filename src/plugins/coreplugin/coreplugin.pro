@@ -46,7 +46,10 @@ SOURCES += \
     themes/darktheme.cpp \
     themes/lighttheme.cpp \
     utils/checkablecombobox.cpp \
-    utils/tabtoolwidget.cpp
+    utils/tabtoolwidget.cpp \
+    utils/addtabbutton.cpp \
+    utils/fancytabstyle.cpp \
+    utils/fancytabwidget.cpp
 
 HEADERS += \
     cantool.h \
@@ -72,7 +75,10 @@ HEADERS += \
     themes/itheme.h \
     themes/lighttheme.h \
     utils/checkablecombobox.h \
-    utils/tabtoolwidget.h
+    utils/tabtoolwidget.h \
+    utils/addtabbutton.h \
+    utils/fancytabstyle.h \
+    utils/fancytabwidget.h
 
 FORMS += \
     cantoolwidgets/caninterfacemanagerwidget.ui \
