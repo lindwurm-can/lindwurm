@@ -30,16 +30,8 @@ namespace Lindwurm::Lib
 
             Range(T begin, T end)
             {
-                if (begin <= end)
-                {
-                    m_begin     = begin;
-                    m_end       = end;
-                    m_isValid   = true;
-                }
-                else
-                {
-                    m_isValid = false;
-                }
+                m_begin     = begin;
+                m_end       = end;
             }
 
             T begin() const
@@ -54,19 +46,20 @@ namespace Lindwurm::Lib
 
             T size() const
             {
-                if ( ! m_isValid )
+                if (m_begin <= m_end)
                 {
-                    return 0;
+                    return (m_end - m_begin) + 1;
                 }
-
-                return (m_end - m_begin) + 1;
+                else
+                {
+                    return (m_begin - m_end) + 1;
+                }
             }
 
-        protected:
+        private:
 
-            T       m_begin   = {0};
-            T       m_end     = {0};
-            bool    m_isValid = {false};
+            T   m_begin = {0};
+            T   m_end   = {0};
     };
 }
 

@@ -25,36 +25,51 @@
 namespace Lindwurm::Lib
 {
     template <typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type>
-    class LINDWURMLIB_EXPORT RangeEnumerator : public Range<T>
+    class LINDWURMLIB_EXPORT RangeEnumerator
     {
         public:
 
-            RangeEnumerator(T begin, T end) : Range<T>(begin, end)
+            RangeEnumerator(T begin, T end) : m_range( Range<T>(begin, end) )
             {
-                m_current = begin;
-                m_isAtEnd = false;
+                m_current   = begin;
+                m_isAtEnd   = false;
             }
 
-            RangeEnumerator(const Range<T> &other) : Range<T>(other.begin(), other.end())
+            RangeEnumerator(const Range<T> &range) : m_range( Range<T>(range.begin(), range.end()) )
             {
-                m_current = other.begin();
-                m_isAtEnd = false;
+                m_current   = range.begin();
+                m_isAtEnd   = false;
+            }
+
+            T size() const
+            {
+                return m_range.size();
+            }
+
+            T begin() const
+            {
+                return m_range.begin();
+            }
+
+            T end() const
+            {
+                return m_range.end();
             }
 
             void reset()
             {
-                m_current = this->m_begin;
+                m_current = m_range.begin();
                 m_isAtEnd = false;
             }
 
             bool hasNext() const
             {
-                return ( (this->m_isValid) && (! this->m_isAtEnd) && (this->m_current <= this->m_end) );
+                return (! this->m_isAtEnd) && (this->m_current <= m_range.end() );
             }
 
             T next()
             {
-                if (this->m_current == this->m_end)
+                if ( this->m_current == m_range.end() )
                 {
                     // avoid overflow errors if m_end is the maximum of type T
                     this->m_isAtEnd = true;
@@ -65,8 +80,9 @@ namespace Lindwurm::Lib
 
         protected:
 
-            T       m_current;
-            bool    m_isAtEnd;
+            Range<T>    m_range;
+            T           m_current;
+            bool        m_isAtEnd;
     };
 }
 
