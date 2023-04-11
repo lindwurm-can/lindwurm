@@ -41,7 +41,7 @@ namespace Lindwurm::Lib
                 m_isAtEnd   = false;
             }
 
-            T size() const
+            int size() const
             {
                 return m_range.size();
             }

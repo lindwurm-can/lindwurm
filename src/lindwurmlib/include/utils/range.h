@@ -44,15 +44,15 @@ namespace Lindwurm::Lib
                 return m_end;
             }
 
-            T size() const
+            int size() const
             {
                 if (m_begin <= m_end)
                 {
-                    return (m_end - m_begin) + 1;
+                    return static_cast<int>( (m_end - m_begin) ) + 1;
                 }
                 else
                 {
-                    return (m_begin - m_end) + 1;
+                    return static_cast<int>( (m_begin - m_end) ) + 1;
                 }
             }
 
