@@ -29,20 +29,53 @@ namespace Lindwurm::Lib
     {
         public:
 
+            RangeEnumerator() : m_range( Range<T>(0, 0) )
+            {
+                m_current   = 0;
+                m_step      = 0;
+                m_hasNext   = false;
+                m_isValid   = false;
+            }
+
             RangeEnumerator(T begin, T end) : m_range( Range<T>(begin, end) )
             {
                 m_current   = begin;
-                m_isAtEnd   = false;
+                m_hasNext   = true;
+                m_isValid   = true;
+
+                if (begin <= end)
+                {
+                    m_step = 1;
+                }
+                else
+                {
+                    m_step = -1;
+                }
             }
 
             RangeEnumerator(const Range<T> &range) : m_range( Range<T>(range.begin(), range.end()) )
             {
                 m_current   = range.begin();
-                m_isAtEnd   = false;
+                m_hasNext   = true;
+                m_isValid   = true;
+
+                if ( range.begin() <= range.end() )
+                {
+                    m_step = 1;
+                }
+                else
+                {
+                    m_step = -1;
+                }
             }
 
             int size() const
             {
+                if ( ! m_isValid )
+                {
+                    return 0;
+                }
+
                 return m_range.size();
             }
 
@@ -58,31 +91,47 @@ namespace Lindwurm::Lib
 
             void reset()
             {
+                if ( ! m_isValid )
+                {
+                    return;
+                }
+
                 m_current = m_range.begin();
-                m_isAtEnd = false;
+                m_hasNext = true;
             }
 
             bool hasNext() const
             {
-                return (! this->m_isAtEnd) && (this->m_current <= m_range.end() );
+                return m_hasNext;
             }
 
             T next()
             {
-                if ( this->m_current == m_range.end() )
+                if ( ! m_hasNext )
                 {
-                    // avoid overflow errors if m_end is the maximum of type T
-                    this->m_isAtEnd = true;
+                    return 0;
                 }
 
-                return this->m_current++;
+                if ( m_current == m_range.end() )
+                {
+                    // avoid overflow errors if range end is the maximum/minmum of type T
+                    m_hasNext = false;
+                }
+
+                T current = m_current;
+
+                m_current = m_current + m_step;
+
+                return current;
             }
 
-        protected:
+        private:
 
             Range<T>    m_range;
             T           m_current;
-            bool        m_isAtEnd;
+            T           m_step;
+            bool        m_isValid;
+            bool        m_hasNext;
     };
 }
 
