@@ -22,6 +22,8 @@
 #include <QByteArray>
 #include <QVector>
 
+#include "rangeenumerator.h"
+
 namespace Lindwurm::Lib
 {
     /**
@@ -89,10 +91,8 @@ namespace Lindwurm::Lib
              */
             struct EnumerationPosition
             {
-                int         index;      /*! The index of the enumeration range in the target array. */
-                int         start;      /*! The start of the enumeration range. */
-                int         end;        /*! The end of the enumeration range. */
-                int         value;      /*! The current value of the byte in the array. */
+                int                     index;      /*! The index of the enumeration range in the target array. */
+                RangeEnumerator<quint8> enumerator; /*! The rabge enumeration for each position. */
             };
 
             void                            computeItemCount();

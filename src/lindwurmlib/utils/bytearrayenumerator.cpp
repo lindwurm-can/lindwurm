@@ -58,22 +58,23 @@ namespace Lindwurm::Lib
                 ByteArrayEnumerator::EnumerationPosition position;
 
                 position.index = positionIndex;
-                position.start = enumeratorIntervals[0].toShort(&toShortOk, BASE_16);
+                quint8 start = enumeratorIntervals[0].toShort(&toShortOk, BASE_16);
                 if ( !toShortOk )
                 {
                     return false;
                 }
 
-                position.end = enumeratorIntervals[1].toShort(&toShortOk, BASE_16);
+                quint8 end = enumeratorIntervals[1].toShort(&toShortOk, BASE_16);
                 if ( !toShortOk )
                 {
                     return false;
                 }
 
-                position.value = position.start;
+                position.enumerator = RangeEnumerator<quint8>(start, end);
+
                 m_enumerations.push_front(position);
 
-                m_byteArray.append( (position.value & 0xFF) );
+                m_byteArray.append( (start & 0xFF) );
             }
             else
             {
@@ -119,23 +120,31 @@ namespace Lindwurm::Lib
 
         m_currentCount++;
 
+        if (m_currentCount == 1)
+        {
+            // this is the first byte array of this enumeration and all positions are already initialized by reset()
+            // so we just return the byte array as initialized
+
+            // we must handle this case separately because if we have multiple enumeration positions, each position
+            // must be initialized in the first run (which is already done in reset)
+
+            return m_byteArray;
+        }
+
         for ( EnumerationPosition &position : m_enumerations )
         {
-            if ( (position.value + 1) > position.end )
+            if ( position.enumerator.hasNext() )
             {
-                position.value = position.start;
+                m_byteArray[ position.index ] = position.enumerator.next();
 
-                m_byteArray[ position.index ] = position.value;
+                // we have no overflow in this position,
+                // so subsequent position stay at the current value and we skip them in this loop
+                break;
             }
             else
             {
-                position.value++;
-
-                m_byteArray[ position.index ] = position.value;
-
-                // we have no overflow in this position,
-                // so subsequent position stay at the current value
-                break;
+                position.enumerator.reset();
+                m_byteArray[ position.index ] = position.enumerator.next();
             }
         }
 
@@ -145,15 +154,11 @@ namespace Lindwurm::Lib
     void ByteArrayEnumerator::reset()
     {
         m_currentCount = 0;
-        int firstOffset = 1;
 
         for ( EnumerationPosition &position : m_enumerations )
         {
-            m_byteArray[ position.index ] = position.start;
-            position.value = position.start - firstOffset;
-
-            // first position is handled different
-            firstOffset = 0;
+            position.enumerator.reset();
+            m_byteArray[ position.index ] = position.enumerator.next();
         }
 
         computeItemCount();
@@ -175,7 +180,7 @@ namespace Lindwurm::Lib
 
         for ( EnumerationPosition position : qAsConst(m_enumerations) )
         {
-            m_itemCount = m_itemCount * ( (position.end - position.start) + 1 );
+            m_itemCount = m_itemCount * ( position.enumerator.size() );
         }
     }
 }
