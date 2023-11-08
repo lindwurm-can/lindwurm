@@ -25,6 +25,10 @@
 namespace
 {
     Q_LOGGING_CATEGORY(LOG_TAG, "lindwurm.lib.transport")
+    const int DEFAULT_BLOCK_SIZE = 0;
+    const int DEFAULT_SEPARATION_TIME = 0;
+    const int DEFAULT_TIMEOUT = 1000;
+    const int MAX_WAIT_CYCLES = 5;
 }
 
 namespace Lindwurm::Lib
@@ -34,12 +38,24 @@ namespace Lindwurm::Lib
         , m_sourceAddress(sourceAddress)
         , m_targetAddress(targetAddress)
     {
+        m_sendConnection.timeoutTimer.setSingleShot(true);
+        m_sendConnection.timeoutTimer.setInterval(DEFAULT_TIMEOUT);
 
-    }
+        m_receiveConnection.timeoutTimer.setSingleShot(true);
+        m_receiveConnection.timeoutTimer.setInterval(DEFAULT_TIMEOUT);
 
-    void IsoTransportProtocol::setPaddingEnabled(bool enablePadding)
-    {
-        m_usePadding = enablePadding;
+        m_separationTimer.setSingleShot(true);
+
+        // since separation time is specified as _minimum_ we use precise timers as they will never time out earlier than expected
+        m_separationTimer.setTimerType(Qt::PreciseTimer);
+
+        resetSendConnection();
+        resetReceiveConnection();
+
+        connect(&m_sendConnection.timeoutTimer,     &QTimer::timeout, this, &IsoTransportProtocol::sendTimeout);
+        connect(&m_receiveConnection.timeoutTimer,  &QTimer::timeout, this, &IsoTransportProtocol::receiveTimeout);
+
+        connect(&m_separationTimer,                 &QTimer::timeout, this, &IsoTransportProtocol::continueSending);
     }
 
     void IsoTransportProtocol::mountCANInterface(ICanInterfaceHandleSharedPtr interface)
@@ -60,6 +76,11 @@ namespace Lindwurm::Lib
         }
     }
 
+    void IsoTransportProtocol::setPaddingEnabled(bool enablePadding)
+    {
+        m_usePadding = enablePadding;
+    }
+
     quint32 IsoTransportProtocol::sourceAddress() const
     {
         return m_sourceAddress;
@@ -70,35 +91,22 @@ namespace Lindwurm::Lib
         return m_targetAddress;
     }
 
-    bool IsoTransportProtocol::sendData(const QByteArray &data)
+    void IsoTransportProtocol::sendTimeout()
     {
-        if ( ! m_canInterface )
-        {
-            // we don't have an interface mounted
-            return false;
-        }
+        qWarning(LOG_TAG) << "Timeout while sending data. Reset send connection!";
+        resetSendConnection();
 
-        if ( m_state != IsoTpState::Idle )
-        {
-            return false;
-        }
-
-        if ( data.size() <= 7 )
-        {
-            // send as single frame
-            if ( sendSingleFrame(data) == true )
-            {
-                //qDebug(LOG_TAG) << "Send data: " << data.toHex();
-                emit dataSent(data);
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        return false;
+        emit errorOccurred(IsoTpError::Timeout);
     }
+
+    void IsoTransportProtocol::receiveTimeout()
+    {
+        qWarning(LOG_TAG) << "Timeout while receiving data. Reset receive connection!";
+        resetReceiveConnection();
+
+        emit errorOccurred(IsoTpError::Timeout);
+    }
+
 
     void IsoTransportProtocol::canFrameReceived(const QCanBusFrame &frame, const QString &sourceInterface)
     {
@@ -109,151 +117,71 @@ namespace Lindwurm::Lib
             return;
         }
 
-        IsoTransportProtocolFrame tpFrame(frame);
+        IsoTransportProtocolFrame tpFrame = IsoTransportProtocolFrame::fromRawCanFrame(frame);
 
         switch ( tpFrame.frameType() )
         {
-            case IsoTransportProtocolFrame::IsoTpFrameType::SingleFrame:
+            case IsoTransportProtocolFrame::Type::SingleFrame:
+
+                if ( m_receiveConnection.state != IsoTpConnectionState::Idle )
+                {
+                    qWarning(LOG_TAG) << "Ignoring unexpected single frame while receiving a segmented message.";
+                    emit errorOccurred(IsoTpError::UnexpectedFrame);
+
+                    return;
+                }
 
                 singleFrameReceived(tpFrame);
+
                 return;
 
-            case IsoTransportProtocolFrame::IsoTpFrameType::FirstFrame:
+            case IsoTransportProtocolFrame::Type::FirstFrame:
+
+                if ( m_receiveConnection.state != IsoTpConnectionState::Idle )
+                {
+                    qWarning(LOG_TAG) << "Ignoring unexpected first frame while already receiving a segmented message.";
+                    emit errorOccurred(IsoTpError::UnexpectedFrame);
+
+                    return;
+                }
 
                 firstFrameReceived(tpFrame);
-                break;
 
-            case IsoTransportProtocolFrame::IsoTpFrameType::ConsecutiveFrame:
+                return;
 
-                if ( m_state == IsoTpState::Receiving )
+            case IsoTransportProtocolFrame::Type::ConsecutiveFrame:
+
+                if ( m_receiveConnection.state != IsoTpConnectionState::Transmission )
                 {
-                    consecutiveFrameReceived(tpFrame);
-                }
-                else
-                {
+                    qWarning(LOG_TAG) << "Ignoring unexpected consecutive frame while not in transmission state.";
                     emit errorOccurred(IsoTpError::UnexpectedFrame);
+
+                    return;
                 }
 
-                break;
-
-            case IsoTransportProtocolFrame::IsoTpFrameType::FlowControlFrame:
-
-                break;
-
-            case IsoTransportProtocolFrame::IsoTpFrameType::Invalid:
-
-                qCritical(LOG_TAG) << "Received invalid ISO TP frame";
-                return;
-        }
-    }
-
-    bool IsoTransportProtocol::sendSingleFrame(const QByteArray &data)
-    {
-        int payloadSize = data.size();
-
-        QByteArray frameData;
-
-        frameData.push_front( static_cast<char>(payloadSize) );
-        frameData.append(data);
-
-        int paddingLength = 0;
-
-        if ( m_usePadding )
-        {
-            paddingLength = paddingSize() - frameData.size();
-
-            for (int i = 0; i < paddingLength; i++)
-            {
-                frameData.append('\x00');
-            }
-        }
-
-        QCanBusFrame singleFrame(m_sourceAddress, frameData);
-
-        return m_canInterface->sendFrame(singleFrame);
-    }
-
-    void IsoTransportProtocol::singleFrameReceived(IsoTransportProtocolFrame &tpFrame)
-    {
-        QByteArray tpData = tpFrame.data();
-
-        if ( tpData.size() != tpFrame.dataLength() )
-        {
-            qWarning(LOG_TAG) << "Received malformed ISO TP frame: expected" << tpFrame.dataLength() << "bytes, but received"  << tpData.size() << "bytes.";
-
-            emit errorOccurred(IsoTpError::MalformedFrame);
-        }
-        else
-        {
-            emit dataReceived( tpFrame.data() );
-        }
-    }
-
-    void IsoTransportProtocol::firstFrameReceived(IsoTransportProtocolFrame &tpFrame)
-    {
-        // TODO: Implement timeout: In case of error (no consecutive frames follows) reset to Idle mode to prevent denial of service
-        m_state = IsoTpState::Receiving;
-
-        IsoTransportProtocolFrame flowControlFrame(m_sourceAddress, 0, 0, 0, paddingSize() );
-
-        if ( flowControlFrame.isValid() )
-        {
-            m_canInterface->sendFrame( flowControlFrame.canFrame() );
-        }
-
-        m_nextExpectedSequenceNumber = 1;
-        m_expectedDataLength = tpFrame.dataLength();
-        m_receiveBuffer = tpFrame.data();
-    }
-
-    void IsoTransportProtocol::consecutiveFrameReceived(IsoTransportProtocolFrame &tpFrame)
-    {
-        if ( tpFrame.sequenceNumber() != m_nextExpectedSequenceNumber )
-        {
-            qCritical(LOG_TAG) << "Received unexpected sequence number";
-
-            emit errorOccurred(IsoTpError::OutOfOrderData);
-
-            resetState();
-
-            return;
-        }
-
-        // current received bytes + maximum bytes of one consecutive frame
-        if ( (m_receiveBuffer.size() + 7) < m_expectedDataLength )
-        {
-            m_nextExpectedSequenceNumber = (m_nextExpectedSequenceNumber + 1) % 16;
-            m_receiveBuffer.append( tpFrame.data() );
-        }
-        else
-        {
-            // this is the last frame
-
-            int remainingBytes = m_expectedDataLength - m_receiveBuffer.size();
-
-            QByteArray remainingData = tpFrame.data();
-
-            if ( remainingData.size() < remainingBytes )
-            {
-                // last frame does not contain all expected remaining data
-
-                qCritical(LOG_TAG) << "Unexpected end of data stream";
-                emit errorOccurred(IsoTpError::DataError);
-
-                resetState();
+                consecutiveFrameReceived(tpFrame);
 
                 return;
-            }
 
-            // remove possible appended padding
-            m_receiveBuffer.append( remainingData.mid(0, remainingBytes) );
+            case IsoTransportProtocolFrame::Type::FlowControlFrame:
 
-            QByteArray receivedData = m_receiveBuffer;
+                if ( m_sendConnection.state != IsoTpConnectionState::Transmission )
+                {
+                    qWarning(LOG_TAG) << "Ignoring unexpected flow control frame while not in transmission state.";
+                    emit errorOccurred(IsoTpError::UnexpectedFrame);
 
-            // calling reset before sending signal to allow recursive calls to IsoTransportProtocol in slots
-            resetState();
+                    return;
+                }
 
-            emit dataReceived( receivedData );
+                flowControlFrameReceived(tpFrame);
+
+                return;
+
+            case IsoTransportProtocolFrame::Type::Invalid:
+
+                qWarning(LOG_TAG) << "Received invalid ISO TP frame.";
+
+                return;
         }
     }
 
@@ -274,12 +202,340 @@ namespace Lindwurm::Lib
         }
     }
 
-    void IsoTransportProtocol::resetState()
+    void IsoTransportProtocol::resetSendConnection()
     {
-        m_nextExpectedSequenceNumber = 0;
-        m_expectedDataLength = 0;
-        m_receiveBuffer.clear();
+        m_sendConnection.timeoutTimer.stop();
+        m_sendConnection.data.clear();
 
-        m_state = IsoTpState::Idle;
+        m_sendConnection.state                  = IsoTpConnectionState::Idle;
+        m_sendConnection.dataLength             = 0;
+        m_sendConnection.blockSize              = 0;
+        m_sendConnection.minSeparationTime      = 0;
+        m_sendConnection.currentBlockNumber     = 0;
+        m_sendConnection.currentSequenceNumber  = 1;
+        m_sendConnection.currentWaitCycle       = 0;
+
+        m_dataToSentCopy.clear();
     }
+
+    void IsoTransportProtocol::resetReceiveConnection()
+    {
+        m_receiveConnection.timeoutTimer.stop();
+        m_receiveConnection.data.clear();
+
+        m_receiveConnection.state                  = IsoTpConnectionState::Idle;
+        m_receiveConnection.dataLength             = 0;
+        m_receiveConnection.blockSize              = DEFAULT_BLOCK_SIZE;
+        m_receiveConnection.minSeparationTime      = DEFAULT_SEPARATION_TIME;
+        m_receiveConnection.currentBlockNumber     = 0;
+        m_receiveConnection.currentSequenceNumber  = 1;
+        m_receiveConnection.currentWaitCycle       = 0;
+    }
+
+    void IsoTransportProtocol::singleFrameReceived(IsoTransportProtocolFrame &tpFrame)
+    {
+        QByteArray tpData = tpFrame.data();
+
+        if ( tpData.size() != tpFrame.dataLength() )
+        {
+            qWarning(LOG_TAG) << "Received malformed ISO TP frame: expected" << tpFrame.dataLength() << "bytes, but received"  << tpData.size() << "bytes.";
+
+            emit errorOccurred(IsoTpError::MalformedFrame);
+        }
+        else
+        {
+            emit dataReceived( tpFrame.data() );
+        }
+    }
+
+    void IsoTransportProtocol::firstFrameReceived(IsoTransportProtocolFrame &tpFrame)
+    {
+        qDebug(LOG_TAG) << "First frame received. Entering receiveing state.";
+
+        m_receiveConnection.state       = IsoTpConnectionState::Transmission;
+        m_receiveConnection.dataLength  = tpFrame.dataLength();
+        m_receiveConnection.data        = tpFrame.data();
+
+        sendFlowControlFrame();
+
+        m_receiveConnection.timeoutTimer.start();
+    }
+
+    void IsoTransportProtocol::consecutiveFrameReceived(IsoTransportProtocolFrame &tpFrame)
+    {
+        m_receiveConnection.timeoutTimer.stop();
+
+        if ( tpFrame.sequenceNumber() != m_receiveConnection.currentSequenceNumber )
+        {
+            qCritical(LOG_TAG) << "Received unexpected sequence number " << tpFrame.sequenceNumber();
+
+            resetReceiveConnection();
+
+            emit errorOccurred(IsoTpError::OutOfOrderData);
+
+            return;
+        }
+
+        // current received bytes + maximum bytes of one consecutive frame
+        bool isLastFrame = (m_receiveConnection.data.size() + 7) >= m_receiveConnection.dataLength;
+
+        if ( isLastFrame )
+        {
+            int remainingBytes = m_receiveConnection.dataLength - m_receiveConnection.data.size();
+
+            QByteArray remainingData = tpFrame.data();
+
+            if ( remainingData.size() < remainingBytes )
+            {
+                // last frame does not contain all expected remaining data
+                // this assumes each consecutive frame has to be completely filled
+                qCritical(LOG_TAG) << "Unexpected end of data stream.";
+
+                resetReceiveConnection();
+
+                emit errorOccurred(IsoTpError::DataError);
+
+                return;
+            }
+
+            // remove possible appended padding
+            m_receiveConnection.data.append( remainingData.mid(0, remainingBytes) );
+
+            QByteArray receivedData = m_receiveConnection.data;
+
+            // calling reset before sending signal to allow recursive calls to IsoTransportProtocol in slots
+            resetReceiveConnection();
+
+            emit dataReceived( receivedData );
+
+            return;
+        }
+        else
+        {
+            m_receiveConnection.currentSequenceNumber = (m_receiveConnection.currentSequenceNumber + 1) % 16;
+            m_receiveConnection.data.append( tpFrame.data() );
+        }
+
+        if ( m_receiveConnection.blockSize != 0 )
+        {
+            m_receiveConnection.currentBlockNumber++;
+
+            if ( m_receiveConnection.currentBlockNumber == m_receiveConnection.blockSize )
+            {
+                // we have reached the maximum number of blocks, so we must send the next flow control frame before the sender continues
+                sendFlowControlFrame();
+                m_receiveConnection.currentBlockNumber = 0;
+            }
+        }
+
+        m_receiveConnection.timeoutTimer.start();
+    }
+
+    void IsoTransportProtocol::sendFlowControlFrame()
+    {
+        IsoTransportProtocolFrame flowControlFrame = IsoTransportProtocolFrame::flowControlFrame(m_sourceAddress, IsoTpFlowStatus::ClearToSend, DEFAULT_BLOCK_SIZE, DEFAULT_SEPARATION_TIME, paddingSize() );
+
+        if ( flowControlFrame.isValid() )
+        {
+            m_canInterface->sendFrame( flowControlFrame.canFrame() );
+        }
+    }
+
+    bool IsoTransportProtocol::sendSingleFrame(const QByteArray &data)
+    {
+        IsoTransportProtocolFrame singleFrame = IsoTransportProtocolFrame::singleFrame(m_sourceAddress, data, paddingSize() );
+
+        return m_canInterface->sendFrame( singleFrame.canFrame() );
+    }
+
+    bool IsoTransportProtocol::sendData(const QByteArray &data)
+    {
+        if ( ! m_canInterface )
+        {
+            // we don't have an interface mounted
+            return false;
+        }
+
+        if ( m_sendConnection.state == IsoTpConnectionState::Transmission )
+        {
+            // TODO: Monitor if this may a legitimate and possible situation. If this may happen we could implement some kind
+            // of sending buffer
+            qWarning(LOG_TAG) << "Could not send data because a transmission is already in progress.";
+
+            return false;
+        }
+
+        if ( data.size() <= 7 )
+        {
+            if ( sendSingleFrame(data) == true )
+            {
+                emit dataSent(data);
+                return true;
+            }
+        }
+        else
+        {
+            m_sendConnection.data = data;
+            m_dataToSentCopy = data;
+
+            return sendFirstFrame();
+        }
+
+        return false;
+    }
+
+    bool IsoTransportProtocol::sendFirstFrame()
+    {
+        if ( m_sendConnection.data.size() > 4096 )
+        {
+            qCritical(LOG_TAG) << "Sending data with size > 4096 is not supported with ISO-TP!";
+
+            resetSendConnection();
+
+            return false;
+        }
+
+        m_sendConnection.state = IsoTpConnectionState::Transmission;
+
+        IsoTransportProtocolFrame firstFrame = IsoTransportProtocolFrame::firstFrame(m_sourceAddress, m_sendConnection.data.size(), m_sendConnection.data.left(6) );
+        m_sendConnection.data.remove(0, 6);
+
+        if ( m_canInterface->sendFrame( firstFrame.canFrame() ) == false )
+        {
+            // if we could not send the first frame, we cancel the transmission
+            resetSendConnection();
+            return false;
+        }
+
+        m_sendConnection.timeoutTimer.start();
+
+        return true;
+    }
+
+    void IsoTransportProtocol::flowControlFrameReceived(IsoTransportProtocolFrame &tpFrame)
+    {
+        m_sendConnection.timeoutTimer.stop();
+
+        qDebug(LOG_TAG) << "flowControlFrame received! blockSize: " << tpFrame.blockSize() << " Separation time: " << tpFrame.separationTime();
+
+        m_sendConnection.blockSize = tpFrame.blockSize();
+        m_sendConnection.minSeparationTime = tpFrame.separationTime();
+
+        switch ( tpFrame.flowStatus() )
+        {
+            case IsoTpFlowStatus::ClearToSend:
+
+                m_sendConnection.currentWaitCycle = 0; // only count successive wait cycles => reset every non blocking frame
+                continueSending();
+
+                return;
+
+            case IsoTpFlowStatus::Wait:
+
+                m_sendConnection.currentWaitCycle++;
+
+                if ( m_sendConnection.currentWaitCycle >= MAX_WAIT_CYCLES)
+                {
+                    qDebug() << "Received to many wait cycles. Reset send connection!";
+                    resetSendConnection();
+                    return;
+                }
+
+                qDebug(LOG_TAG) << "Waiting for next flow control frame";
+                m_sendConnection.timeoutTimer.start();
+                return;
+
+            case IsoTpFlowStatus::Overflow:
+
+                qDebug(LOG_TAG) << "Overflow";
+                resetSendConnection();
+
+                emit errorOccurred(IsoTpError::OverFlow);
+
+                return;
+        }
+    }
+
+    bool IsoTransportProtocol::sendNextConsecutiveFrame()
+    {
+        IsoTransportProtocolFrame consecutiveFrame = IsoTransportProtocolFrame::consecutiveFrame(m_sourceAddress, m_sendConnection.currentSequenceNumber, m_sendConnection.data.left(7), paddingSize() );
+        m_sendConnection.data.remove(0, 7);
+
+        m_sendConnection.currentSequenceNumber = (m_sendConnection.currentSequenceNumber + 1) % 16;
+
+        return m_canInterface->sendFrame( consecutiveFrame.canFrame() );
+    }
+
+    void IsoTransportProtocol::continueSending()
+    {
+        do
+        {
+            sendNextConsecutiveFrame();
+
+            if ( m_sendConnection.data.size() == 0 )
+            {
+                QByteArray sentDataLocalCopy = m_dataToSentCopy;
+
+                resetSendConnection();
+
+                emit dataSent(sentDataLocalCopy);
+
+                return;
+            }
+
+            if ( m_sendConnection.blockSize != 0 )
+            {
+                m_sendConnection.currentBlockNumber++;
+
+                if ( m_sendConnection.currentBlockNumber == m_sendConnection.blockSize )
+                {
+                    // we reached the maximum number of blocks we're allowed to send before we receive the next consecutive frame
+                    // so we reset the current block number and wait for the next consecutive frame
+                    m_sendConnection.currentBlockNumber = 0;
+                    m_sendConnection.timeoutTimer.start();
+
+                    return;
+                }
+            }
+
+            if ( m_sendConnection.minSeparationTime != 0 )
+            {
+                if ( m_sendConnection.minSeparationTime <= 127 )
+                {
+                    // STmin 0x00 - 0x7F (0 - 127) => units of STmin are absolute milliseconds
+                    m_separationTimer.setInterval(m_sendConnection.minSeparationTime);
+                }
+                else
+                {
+                    if ( (m_sendConnection.minSeparationTime >= 0xF1) && (m_sendConnection.minSeparationTime <= 0xF9) )
+                    {
+                        // STmin 0x00 - 0xF1 => units of STmin are multiples of 100us
+                        // 0xF1 => 100us
+                        // 0xF9 => 900us
+
+                        // since QTimer only supports ms precision, we always set 1 ms
+                        m_separationTimer.setInterval(1);
+                    }
+                    else
+                    {
+                        // Reserved values
+                        // 0x80 - 0xF0
+                        // 0xFA - 0xFF
+
+                        // should not happen, but for robust error handling
+                        // we shall use the longest STmin value specified by the standard => 127 ms
+                        m_separationTimer.setInterval(127);
+                    }
+                }
+
+                m_separationTimer.start();
+
+                return;
+            }
+
+        }
+        while (true);
+
+    }
+
 }

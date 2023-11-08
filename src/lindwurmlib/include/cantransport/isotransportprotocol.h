@@ -22,6 +22,7 @@
 #include <QObject>
 #include <QCanBusFrame>
 #include <QByteArray>
+#include <QTimer>
 
 #include "cantransport/isotransportprotocolframe.h"
 #include "caninterface/icaninterfacehandlesharedptr.h"
@@ -35,26 +36,20 @@ namespace Lindwurm::Lib
 
             explicit            IsoTransportProtocol(quint32 sourceAddress, quint32 targetAddress, QObject *parent = nullptr);
 
-            enum class IsoTpState
-            {
-                Idle,
-                Sending,
-                Receiving
-            };
-
             enum class IsoTpError
             {
                 Timeout,
                 DataError,
                 MalformedFrame,
                 UnexpectedFrame,
-                OutOfOrderData
+                OutOfOrderData,
+                OverFlow
             };
-
-            void                setPaddingEnabled(bool enablePadding);
 
             void                mountCANInterface(ICanInterfaceHandleSharedPtr interface);
             void                unmountCANInterface();
+
+            void                setPaddingEnabled(bool enablePadding);
 
             quint32             sourceAddress() const;
             quint32             targetAddress() const;
@@ -67,34 +62,76 @@ namespace Lindwurm::Lib
             void                dataSent(const QByteArray &data);
             void                dataReceived(const QByteArray &data);
 
-
         private slots:
 
+            void                sendTimeout();
+            void                receiveTimeout();
             void                canFrameReceived(const QCanBusFrame &frame, const QString &sourceInterface);
+
+            bool                sendNextConsecutiveFrame();
+            void                continueSending();
 
         private:
 
-            bool                sendSingleFrame(const QByteArray &data);
+            int                 paddingSize() const;
+
+            void                resetSendConnection();
+            void                resetReceiveConnection();
+
             void                singleFrameReceived(IsoTransportProtocolFrame &tpFrame);
             void                firstFrameReceived(IsoTransportProtocolFrame &tpFrame);
             void                consecutiveFrameReceived(IsoTransportProtocolFrame &tpFrame);
 
-            int                 paddingSize() const;
-            void                resetState();
+            void                sendFlowControlFrame();
+
+            bool                sendSingleFrame(const QByteArray &data);
+            bool                sendFirstFrame();
+
+            void                flowControlFrameReceived(IsoTransportProtocolFrame &tpFrame);
 
         private:
 
-            IsoTpState                      m_state = { IsoTpState::Idle };
-            bool                            m_usePadding = { true };
+            enum class IsoTpConnectionState
+            {
+                Idle,
+                Transmission
+            };
 
-            quint32                         m_sourceAddress;
-            quint32                         m_targetAddress;
+            /**
+             * @brief The IsoTpConnection struct stores all attributes of one directed TP connection.
+             */
+            struct IsoTpConnection
+            {
+                IsoTpConnectionState        state;
+                int                         dataLength;
+                QByteArray                  data;
+
+                quint8                      blockSize;
+                quint8                      minSeparationTime;
+
+                quint8                      currentSequenceNumber;
+                quint8                      currentBlockNumber;
+                quint8                      currentWaitCycle;
+
+                QTimer                      timeoutTimer;
+            };
+
+            IsoTpConnection                 m_receiveConnection;
+            IsoTpConnection                 m_sendConnection;
 
             ICanInterfaceHandleSharedPtr    m_canInterface = {};
 
-            int                             m_nextExpectedSequenceNumber = { 0 };
-            int                             m_expectedDataLength = { 0 };
-            QByteArray                      m_receiveBuffer = {};
+            bool                            m_usePadding = { true };
+
+            // TODO: While sending we currently remove every sent part of the data from the connection's byte array
+            // To be able to emit the dataSend signal on a successful transmission with the original data, we maintain a temporary copy here
+            // maybe we can refactor this to keep the connection's data buffer intact and use an offset to the remaining data in the array
+            QByteArray                      m_dataToSentCopy;
+
+            QTimer                          m_separationTimer;
+
+            quint32                         m_sourceAddress;
+            quint32                         m_targetAddress;
     };
 }
 

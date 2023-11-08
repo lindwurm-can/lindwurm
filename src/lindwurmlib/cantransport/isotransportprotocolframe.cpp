@@ -19,9 +19,13 @@
 
 namespace Lindwurm::Lib
 {
-    IsoTransportProtocolFrame::IsoTransportProtocolFrame(const QCanBusFrame &canFrame, QObject *parent)
-        : QObject(parent)
-        , m_canFrame(canFrame)
+    IsoTransportProtocolFrame::IsoTransportProtocolFrame()
+    {
+        // constructs an invalid protocol frame
+    }
+
+    IsoTransportProtocolFrame::IsoTransportProtocolFrame(const QCanBusFrame &canFrame)
+        : m_canFrame(canFrame)
     {
         if ( m_canFrame.payload().size() < 1)
         {
@@ -32,68 +36,131 @@ namespace Lindwurm::Lib
 
         switch (type)
         {
-            case 0:     m_frameType = IsoTpFrameType::SingleFrame;       break;
-            case 1:     m_frameType = IsoTpFrameType::FirstFrame;        break;
-            case 2:     m_frameType = IsoTpFrameType::ConsecutiveFrame;  break;
-            case 3:     m_frameType = IsoTpFrameType::FlowControlFrame;  break;
-            default:    m_frameType = IsoTpFrameType::Invalid;           return;
+            case 0:
+                        if ( m_canFrame.payload().size() < 2)   return;
+                        m_frameType = Type::SingleFrame;
+                        break;
+
+            case 1:
+                        if ( m_canFrame.payload().size() < 8)   return;
+                        m_frameType = Type::FirstFrame;
+                        break;
+
+            case 2:
+                        if ( m_canFrame.payload().size() < 2)   return;
+                        m_frameType = Type::ConsecutiveFrame;
+                        break;
+
+            case 3:
+                        if ( m_canFrame.payload().size() < 3)   return;
+                        m_frameType = Type::FlowControlFrame;
+                        break;
+
+            default:    m_frameType = Type::Invalid;            return;
         }
 
     }
 
-    IsoTransportProtocolFrame::IsoTransportProtocolFrame(quint32 frameId, const QByteArray &data, QObject *parent)
-        : QObject(parent)
-        , m_canFrame()
+    IsoTransportProtocolFrame IsoTransportProtocolFrame::fromRawCanFrame(const QCanBusFrame &canFrame)
     {
-        if ( data.size() > 7 )
-        {
-            m_frameType = IsoTpFrameType::Invalid;
-        }
+        return IsoTransportProtocolFrame(canFrame);
+    }
 
-        m_frameType = IsoTpFrameType::SingleFrame;
+    IsoTransportProtocolFrame IsoTransportProtocolFrame::singleFrame(quint32 frameId, const QByteArray &data, int paddingSize)
+    {
+        if ( (data.size() > 7) || (data.size() < 1) )
+        {
+            return IsoTransportProtocolFrame();
+        }
 
         QByteArray payload;
 
         payload.push_front( static_cast<char>( data.size() ) );
         payload.push_back( data );
 
-        m_canFrame.setPayload(payload);
-        m_canFrame.setFrameId(frameId);
-    }
-
-    IsoTransportProtocolFrame::IsoTransportProtocolFrame(quint32 frameId, int flowStatus, int blockSize, int separationTime, int paddingSize, QObject *parent)
-        : QObject(parent)
-        , m_canFrame()
-    {
-        if ( (flowStatus > 2) || (blockSize > 255) || (separationTime > 255) )
+        if (paddingSize > 0)
         {
-            m_frameType = IsoTpFrameType::Invalid;
-            return;
+            appendPadding(payload, paddingSize);
         }
 
-        m_frameType = IsoTpFrameType::FlowControlFrame;
+        QCanBusFrame canFrame;
+
+        canFrame.setFrameId(frameId);
+        canFrame.setPayload(payload);
+
+        return IsoTransportProtocolFrame(canFrame);
+    }
+
+    IsoTransportProtocolFrame IsoTransportProtocolFrame::firstFrame(quint32 frameId, int totalDataLength, const QByteArray &data)
+    {
+        if ( (totalDataLength > 4096) || (data.size() > 6) )
+        {
+            return IsoTransportProtocolFrame();
+        }
 
         QByteArray payload;
 
-        payload.append( 0x30 + flowStatus );
+        payload.append( 0x10 + ( (totalDataLength >> 8) & 0x0F) );
+        payload.append( totalDataLength & 0xFF );
+        payload.append( data );
+
+        QCanBusFrame canFrame;
+
+        canFrame.setFrameId(frameId);
+        canFrame.setPayload(payload);
+
+        return IsoTransportProtocolFrame(canFrame);
+    }
+
+    IsoTransportProtocolFrame IsoTransportProtocolFrame::consecutiveFrame(quint32 frameId, quint8 sequenceNumber, const QByteArray &data, int paddingSize)
+    {
+        if ( (data.size() < 1) || (data.size() > 7) || (sequenceNumber > 15) )
+        {
+            return IsoTransportProtocolFrame();
+        }
+
+        QByteArray payload;
+
+        payload.append( 0x20 + ( sequenceNumber & 0x0F) );
+        payload.append( data );
+
+        appendPadding(payload, paddingSize);
+
+        QCanBusFrame canFrame;
+
+        canFrame.setFrameId(frameId);
+        canFrame.setPayload(payload);
+
+        return IsoTransportProtocolFrame(canFrame);
+    }
+
+    IsoTransportProtocolFrame IsoTransportProtocolFrame::flowControlFrame(quint32 frameId, IsoTpFlowStatus flowStatus, int blockSize, int separationTime, int paddingSize)
+    {
+        if ( (blockSize > 255) || (separationTime > 255) )
+        {
+            return IsoTransportProtocolFrame();
+        }
+
+        QByteArray payload;
+
+        payload.append( 0x30 + flowStatusToNumber(flowStatus) );
         payload.append( static_cast<unsigned char>(blockSize) );
         payload.append( static_cast<unsigned char>(separationTime) );
 
         if (paddingSize > 0)
         {
-            int neededPadding = paddingSize - 3;
-
-            for (int i = 0; i < neededPadding; i++)
-            {
-                payload.append('\x00');
-            }
+            appendPadding(payload, paddingSize);
         }
 
-        m_canFrame.setFrameId(frameId);
-        m_canFrame.setPayload(payload);
+        QCanBusFrame canFrame;
+
+        canFrame.setFrameId(frameId);
+        canFrame.setPayload(payload);
+
+        return IsoTransportProtocolFrame(canFrame);
     }
 
-    IsoTransportProtocolFrame::IsoTpFrameType IsoTransportProtocolFrame::frameType() const
+    IsoTransportProtocolFrame::Type IsoTransportProtocolFrame::frameType() const
     {
         return m_frameType;
     }
@@ -105,26 +172,26 @@ namespace Lindwurm::Lib
 
     bool IsoTransportProtocolFrame::isValid() const
     {
-        return m_frameType != IsoTpFrameType::Invalid;
+        return m_frameType != Type::Invalid;
     }
 
     int IsoTransportProtocolFrame::dataLength() const
     {
         switch ( m_frameType )
         {
-            case IsoTpFrameType::SingleFrame:
+            case Type::SingleFrame:
 
                 return (m_canFrame.payload().at(0) & 0x0F);
 
-            case IsoTpFrameType::FirstFrame:
+            case Type::FirstFrame:
             {
-                char msb = m_canFrame.payload().at(0) & 0x0F;
-                char lsb = m_canFrame.payload().at(1);
+                quint8 msb = m_canFrame.payload().at(0) & 0x0F;
+                quint8 lsb = m_canFrame.payload().at(1);
 
                 return (static_cast<quint16>(msb) << 8) | (static_cast<quint16>(lsb) );
             }
 
-            case IsoTpFrameType::ConsecutiveFrame:
+            case Type::ConsecutiveFrame:
 
                 // consecutive frames usually have 7 bytes data (8 byte CAN frame -1 byte for PCI)
                 // last consecutive frame may have fewer bytes (if no padding is used): payload length -1 byte for PCI
@@ -141,7 +208,7 @@ namespace Lindwurm::Lib
 
     int IsoTransportProtocolFrame::sequenceNumber() const
     {
-        if (m_frameType == IsoTpFrameType::FirstFrame || m_frameType == IsoTpFrameType::ConsecutiveFrame)
+        if (m_frameType == Type::FirstFrame || m_frameType == Type::ConsecutiveFrame)
         {
             if ( m_canFrame.payload().size() > 0 )
             {
@@ -152,26 +219,42 @@ namespace Lindwurm::Lib
         return 0;
     }
 
-    int IsoTransportProtocolFrame::flowStatus() const
+    IsoTpFlowStatus IsoTransportProtocolFrame::flowStatus() const
     {
-        if ( m_frameType == IsoTpFrameType::FlowControlFrame)
+        if ( m_frameType == Type::FlowControlFrame)
         {
             if ( m_canFrame.payload().size() > 0 )
             {
-                return m_canFrame.payload().at(0) & 0x0F;
+                return numberToFlowStatus( m_canFrame.payload().at(0) & 0x0F );
+            }
+        }
+
+        return IsoTpFlowStatus::Overflow;
+    }
+
+    quint8 IsoTransportProtocolFrame::blockSize() const
+    {
+        if ( m_frameType == Type::FlowControlFrame)
+        {
+            if ( m_canFrame.payload().size() > 1 )
+            {
+                return m_canFrame.payload().at(1);
             }
         }
 
         return 0;
     }
 
-    int IsoTransportProtocolFrame::blockSize() const
+    quint8 IsoTransportProtocolFrame::separationTime() const
     {
-        return 0;
-    }
+        if ( m_frameType == Type::FlowControlFrame)
+        {
+            if ( m_canFrame.payload().size() > 2 )
+            {
+                return m_canFrame.payload().at(2);
+            }
+        }
 
-    int IsoTransportProtocolFrame::separationTime() const
-    {
         return 0;
     }
 
@@ -179,15 +262,15 @@ namespace Lindwurm::Lib
     {
         switch ( m_frameType )
         {
-            case IsoTpFrameType::SingleFrame:
+            case Type::SingleFrame:
 
                 return m_canFrame.payload().mid(1, dataLength() );
 
-            case IsoTpFrameType::FirstFrame:
+            case Type::FirstFrame:
 
                 return m_canFrame.payload().mid(2, -1);
 
-            case IsoTpFrameType::ConsecutiveFrame:
+            case Type::ConsecutiveFrame:
 
                 return m_canFrame.payload().mid(1, -1);
 
@@ -196,5 +279,40 @@ namespace Lindwurm::Lib
         }
 
         return QByteArray();
+    }
+
+    quint8 IsoTransportProtocolFrame::flowStatusToNumber(IsoTpFlowStatus status)
+    {
+        switch (status)
+        {
+            case IsoTpFlowStatus::ClearToSend:  return 0;
+            case IsoTpFlowStatus::Wait:         return 1;
+            case IsoTpFlowStatus::Overflow:     return 2;
+        }
+
+        return 0;
+    }
+
+    IsoTpFlowStatus IsoTransportProtocolFrame::numberToFlowStatus(quint8 status)
+    {
+        switch (status)
+        {
+            case 0: return IsoTpFlowStatus::ClearToSend;
+            case 1: return IsoTpFlowStatus::Wait;
+            case 2: return IsoTpFlowStatus::Overflow;
+        }
+
+        // > 2 =>   undefined behavior
+        return IsoTpFlowStatus::Overflow;
+    }
+
+    void IsoTransportProtocolFrame::appendPadding(QByteArray &payload, int paddingSize)
+    {
+        int neededPadding = paddingSize - payload.size();
+
+        for (int i = 0; i < neededPadding; i++)
+        {
+            payload.append('\x00');
+        }
     }
 }

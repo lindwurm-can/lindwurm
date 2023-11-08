@@ -19,17 +19,22 @@
 #define ISOTRANSPORTPROTOCOLFRAME_H
 
 #include "lindwurmlib_global.h"
-#include <QObject>
 #include <QCanBusFrame>
 
 namespace Lindwurm::Lib
 {
-    class LINDWURMLIB_EXPORT IsoTransportProtocolFrame : public QObject
+    enum class IsoTpFlowStatus
     {
-        Q_OBJECT
+        ClearToSend = 0,
+        Wait        = 1,
+        Overflow    = 2
+    };
+
+    class LINDWURMLIB_EXPORT IsoTransportProtocolFrame
+    {
         public:
 
-            enum class IsoTpFrameType
+            enum class Type
             {
                 Invalid,
                 SingleFrame,
@@ -38,23 +43,35 @@ namespace Lindwurm::Lib
                 FlowControlFrame
             };
 
-            explicit IsoTransportProtocolFrame(const QCanBusFrame& canFrame, QObject *parent = nullptr);
-            explicit IsoTransportProtocolFrame(quint32 frameId, const QByteArray &data, QObject *parent = nullptr);
-            explicit IsoTransportProtocolFrame(quint32 frameId, int flowStatus, int blockSize, int separationTime, int paddingSize = 0, QObject *parent = 0);
+            static      IsoTransportProtocolFrame fromRawCanFrame(const QCanBusFrame& canFrame);
 
-            IsoTpFrameType  frameType() const;
+            static      IsoTransportProtocolFrame singleFrame(quint32 frameId, const QByteArray &data, int paddingSize = 0);
+            static      IsoTransportProtocolFrame firstFrame(quint32 frameId, int totalDataLength, const QByteArray &data);
+            static      IsoTransportProtocolFrame consecutiveFrame(quint32 frameId, quint8 sequenceNumber, const QByteArray &data, int paddingSize = 0);
+            static      IsoTransportProtocolFrame flowControlFrame(quint32 frameId, IsoTpFlowStatus flowStatus, int blockSize, int separationTime, int paddingSize = 0);
+
+            Type            frameType() const;
             QCanBusFrame    canFrame() const;
             bool            isValid() const;
             int             dataLength() const;
             int             sequenceNumber() const;
-            int             flowStatus() const;
-            int             blockSize() const;
-            int             separationTime() const;
+            IsoTpFlowStatus flowStatus() const;
+            quint8          blockSize() const;
+            quint8          separationTime() const;
             QByteArray      data() const;
 
         private:
 
-            IsoTpFrameType      m_frameType = { IsoTpFrameType::Invalid };
+            explicit                IsoTransportProtocolFrame();
+            explicit                IsoTransportProtocolFrame(const QCanBusFrame& canFrame);
+
+            static quint8           flowStatusToNumber(IsoTpFlowStatus status);
+            static IsoTpFlowStatus  numberToFlowStatus(quint8 status);
+            static void             appendPadding(QByteArray &payload, int paddingSize);
+
+        private:
+
+            Type                m_frameType = { Type::Invalid };
             QCanBusFrame        m_canFrame;
     };
 }
